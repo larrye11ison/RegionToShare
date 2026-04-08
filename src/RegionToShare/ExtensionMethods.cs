@@ -1,14 +1,11 @@
-﻿using System.Drawing;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Forms;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using static RegionToShare.NativeMethods;
 using Brush = System.Windows.Media.Brush;
 using Color = System.Windows.Media.Color;
-using Point = System.Drawing.Point;
 
 namespace RegionToShare
 {
@@ -71,23 +68,39 @@ namespace RegionToShare
             return false;
         }
 
-        public static void DrawCursor(this Graphics graphics, RECT nativeRect)
+        public static void DrawCursor(IntPtr hdc, RECT nativeRect)
         {
             CURSORINFO pci = default;
             pci.cbSize = Marshal.SizeOf(typeof(CURSORINFO));
 
             if (!GetCursorInfo(ref pci) || (pci.flags != CURSOR_SHOWING))
                 return;
-
-            var cursor = Cursor.Current;
-            if (cursor == null)
+            var hCursor = pci.hCursor;
+            if (hCursor == IntPtr.Zero)
                 return;
 
-            var location = new Point(
-                cursor.HotSpot.X + pci.ptScreenPos.X - nativeRect.Left,
-                cursor.HotSpot.Y + pci.ptScreenPos.Y - nativeRect.Top);
+            // Obtain hotspot from icon info
+            if (!GetIconInfo(hCursor, out var iconInfo))
+            {
+                return;
+            }
 
-            cursor?.Draw(graphics, new Rectangle(location, cursor.Size));
+            try
+            {
+                var x = pci.ptScreenPos.X - nativeRect.Left - iconInfo.xHotspot;
+                var y = pci.ptScreenPos.Y - nativeRect.Top - iconInfo.yHotspot;
+
+                // Draw the cursor icon directly to the provided HDC. Use 0 for cx/cy to draw at default size.
+                DrawIconEx(hdc, x, y, hCursor, 0, 0, 0, IntPtr.Zero, 0);
+            }
+            finally
+            {
+                // Cleanup bitmaps created by GetIconInfo
+                if (iconInfo.hbmColor != IntPtr.Zero)
+                    DeleteObject(iconInfo.hbmColor);
+                if (iconInfo.hbmMask != IntPtr.Zero)
+                    DeleteObject(iconInfo.hbmMask);
+            }
         }
 
         private const int PatternSize = 128;

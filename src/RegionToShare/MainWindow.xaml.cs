@@ -26,6 +26,10 @@ public partial class MainWindow
     private RecordingWindow? _recordingWindow;
 
     private POINT _debugOffset;
+    private bool _isInResizeMode;
+    private WindowStyle _previousWindowStyle;
+    private ResizeMode _previousResizeMode;
+    private ToolWindow? _toolWindow;
 
     public MainWindow()
     {
@@ -36,9 +40,95 @@ public partial class MainWindow
         Resources.RegisterDefaultStyles();
         SetThemeColor();
         Settings.PropertyChanged += Settings_PropertyChanged;
+        this.PreviewKeyDown += MainWindow_PreviewKeyDown;
+        this.LocationChanged += MainWindow_LocationOrSizeChanged;
+        this.SizeChanged += MainWindow_LocationOrSizeChanged;
     }
 
-    public string Version => Assembly.GetExecutingAssembly().GetName().Version.ToString();
+    private void MainWindow_PreviewKeyDown(object? sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.R && (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == System.Windows.Input.ModifierKeys.Control)
+        {
+            ToggleResizeMode();
+            e.Handled = true;
+        }
+    }
+
+    private void ResizeModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleResizeMode();
+    }
+
+    private void ToggleResizeMode()
+    {
+        if (!_isInResizeMode)
+        {
+            // Enter resize mode: pause capture and restore window chrome for easy resizing
+            _previousWindowStyle = this.WindowStyle;
+            _previousResizeMode = this.ResizeMode;
+
+            _isInResizeMode = true;
+
+            if (_recordingWindow != null)
+            {
+                _recordingWindow.PauseCapture();
+            }
+
+            this.WindowStyle = WindowStyle.ThreeDBorderWindow;
+            this.ResizeMode = ResizeMode.CanResize;
+            // Update tool window button visual if present
+            if (_toolWindow != null)
+            {
+                _toolWindow.ResizeBtn.Background = System.Windows.SystemColors.ControlDarkBrush;
+            }
+        }
+        else
+        {
+            // Exit resize mode: resume capture and restore previous window chrome
+            _isInResizeMode = false;
+
+            if (_recordingWindow != null)
+            {
+                _recordingWindow.ResumeCapture();
+            }
+
+            this.WindowStyle = _previousWindowStyle;
+            this.ResizeMode = _previousResizeMode;
+            if (_toolWindow != null)
+            {
+                _toolWindow.ResizeBtn.ClearValue(System.Windows.Controls.Button.BackgroundProperty);
+            }
+        }
+    }
+
+    public void StopCapture()
+    {
+        // Close the recording window if active
+        if (_recordingWindow != null)
+        {
+            _recordingWindow.Close();
+            _recordingWindow = null;
+        }
+    }
+
+    private void MainWindow_LocationOrSizeChanged(object? sender, EventArgs e)
+    {
+        PositionToolWindow();
+    }
+
+    private void PositionToolWindow()
+    {
+        if (_toolWindow == null)
+            return;
+
+        // Position tool window near top-right of main window (offset so it's left of system close area)
+        var offsetRight = 12;
+        var offsetTop = 6;
+        _toolWindow.Left = this.Left + this.Width - _toolWindow.Width - offsetRight;
+        _toolWindow.Top = this.Top + offsetTop;
+    }
+
+    public string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty;
 
     public ICollection<string> Resolutions { get; }
 
@@ -172,6 +262,14 @@ public partial class MainWindow
         };
 
         separationLayerWindow.Show();
+
+        // Create and show the small always-on-top tool window for resize/stop controls
+        _toolWindow = new ToolWindow();
+        _toolWindow.Owner = this;
+        _toolWindow.ResizeBtn.Click += (_, _) => ToggleResizeMode();
+        _toolWindow.StopBtn.Click += (_, _) => StopCapture();
+        _toolWindow.Loaded += (_, _) => PositionToolWindow();
+        _toolWindow.Show();
     }
 
     private void SetActive()
@@ -180,7 +278,7 @@ public partial class MainWindow
 
         var timer = new DispatcherTimer(DispatcherPriority.ApplicationIdle, Dispatcher.CurrentDispatcher);
 
-        void TimerTick(object sender, EventArgs e)
+        void TimerTick(object? sender, EventArgs e)
         {
             if (_recordingWindow != null)
             {
@@ -274,7 +372,7 @@ public partial class MainWindow
         return false;
     }
 
-    private void Settings_PropertyChanged(object sender, PropertyChangedEventArgs e)
+    private void Settings_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(Settings.ThemeColor))
         {

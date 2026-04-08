@@ -1,15 +1,12 @@
-﻿using System.Drawing;
-using System.Drawing.Imaging;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Image = System.Windows.Controls.Image;
 using TomsToolbox.Essentials;
 using TomsToolbox.Wpf;
 using static RegionToShare.NativeMethods;
-using Image = System.Windows.Controls.Image;
-using Size = System.Drawing.Size;
 
 namespace RegionToShare;
 
@@ -30,6 +27,7 @@ public partial class RecordingWindow
     private RECT _nativeMainWindowRect;
     private int _timerMutex;
     private IntPtr _windowHandle;
+    // DXGI capture removed; using native BitBlt capture now
 
     public RecordingWindow(Image renderTarget, bool drawShadowCursor, int framesPerSecond, POINT debugOffset)
     {
@@ -122,6 +120,16 @@ public partial class RecordingWindow
         _timer.Stop();
     }
 
+    public void PauseCapture()
+    {
+        _timer?.Stop();
+    }
+
+    public void ResumeCapture()
+    {
+        _timer?.Start();
+    }
+
     private void OnSizeOrPositionChanged()
     {
         if (!IsLoaded)
@@ -207,7 +215,8 @@ public partial class RecordingWindow
 
         try
         {
-            Dispatcher.BeginInvoke(Timer_Tick);
+            // Explicitly call the WPF Dispatcher extension to avoid ambiguity with TomsToolbox extension methods
+            System.Windows.Threading.DispatcherExtensions.BeginInvoke(Dispatcher, Timer_Tick);
         }
         catch
         {
@@ -217,27 +226,44 @@ public partial class RecordingWindow
 
     private void Timer_Tick()
     {
-        try
-        {
-            var nativeRect = _nativeMainWindowRect - _debugOffset;
-
-            using var bitmap = new Bitmap(nativeRect.Width, nativeRect.Height, PixelFormat.Format32bppArgb);
-            using var graphics = Graphics.FromImage(bitmap);
-
-            graphics.CopyFromScreen(nativeRect.Left, nativeRect.Top, 0, 0, new Size(nativeRect.Width, nativeRect.Height));
-
-            if (_drawShadowCursor)
+            try
             {
-                graphics.DrawCursor(nativeRect);
+                var nativeRect = _nativeMainWindowRect - _debugOffset;
+
+                var screenHdc = GetDC(IntPtr.Zero);
+                var memHdc = CreateCompatibleDC(screenHdc);
+                IntPtr hBitmap = IntPtr.Zero;
+                IntPtr oldBitmap = IntPtr.Zero;
+                try
+                {
+                    hBitmap = CreateCompatibleBitmap(screenHdc, nativeRect.Width, nativeRect.Height);
+                    oldBitmap = SelectObject(memHdc, hBitmap);
+
+                    // BitBlt from screen DC to memory DC
+                    BitBlt(memHdc, 0, 0, nativeRect.Width, nativeRect.Height, screenHdc, nativeRect.Left, nativeRect.Top, SRCCOPY);
+
+                    if (_drawShadowCursor)
+                    {
+                        // Draw cursor directly into the memory DC
+                        ExtensionMethods.DrawCursor(memHdc, nativeRect);
+                    }
+
+                    var imageSource = Imaging.CreateBitmapSourceFromHBitmap(hBitmap, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+
+                    _renderTarget.Source = imageSource;
+                }
+                finally
+                {
+                    if (oldBitmap != IntPtr.Zero)
+                        SelectObject(memHdc, oldBitmap);
+                    if (hBitmap != IntPtr.Zero)
+                        DeleteObject(hBitmap);
+                    if (memHdc != IntPtr.Zero)
+                        DeleteDC(memHdc);
+                    if (screenHdc != IntPtr.Zero)
+                        ReleaseDC(IntPtr.Zero, screenHdc);
+                }
             }
-
-            var bitmapHandle = bitmap.GetHbitmap();
-            var imageSource = Imaging.CreateBitmapSourceFromHBitmap(bitmapHandle, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-
-            DeleteObject(bitmapHandle);
-
-            _renderTarget.Source = imageSource;
-        }
         catch
         {
             // Window already unloaded

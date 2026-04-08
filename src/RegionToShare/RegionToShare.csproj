@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net462</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <LangVersion>10.0</LangVersion>
@@ -20,15 +20,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Fody" Version="6.9.1" PrivateAssets="all" />
+    <PackageReference Include="Fody" Version="6.9.3" PrivateAssets="all" />
     <PackageReference Include="Throttle.Fody" Version="1.7.0" PrivateAssets="all" />
-    <PackageReference Include="TomsToolbox.Wpf.Styles" Version="2.21.0" />
+    <PackageReference Include="TomsToolbox.Wpf.Styles" Version="2.23.0" />
+    <!-- Vortice packages removed; using native Win32 capture path for now -->
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="WindowsFormsIntegration" />
-  </ItemGroup>
+  <!-- Framework references are provided by the WindowsDesktop SDK when UseWPF/UseWindowsForms are enabled -->
 
   <ItemGroup>
     <Compile Update="Properties\Settings.Designer.cs">
