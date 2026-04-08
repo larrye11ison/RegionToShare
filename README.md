@@ -1,3 +1,21 @@
+# Message for this fork only
+
+Hey there, the original project hasn't really been meaningfully updated in several years. For ex., it's still 
+targeting .net framework 4.6.2. I'm trying to cobble together a version that doesn't use .net framework and get
+it fully converted to .net 10. 
+
+This is basically a Copilot slopfest (well, MY changes that I've committed here in my fork are). 
+
+Currently, everything is targeting .net 10 and all .net fw stuff should be removed. I've also started trying to 
+remove the "windows forms stuff" and replace it with newer equivalents. I'm not sure at if any of these latter
+changes are making anything better - I feel like I'm getting rid of some WinForms code and replacing it with WPF,
+so... yeah.
+
+But... what is in the main branch does at least mostly work right now. I was last attempting to make some changes 
+to make it easier to resize the window (I found it really difficult to grab the lower-right corner of the dashed
+window outline). That bit is pretty bad right now, but it doesn't massively detract from the overall functionality.
+
+
 # ![Icon](./src/Assets/32.png) Region to Share 
 [![Build Status](https://dev.azure.com/tom-englert/Open%20Source/_apis/build/status/tom-englert.RegionToShare?branchName=main)](https://dev.azure.com/tom-englert/Open%20Source/_build/latest?definitionId=48&branchName=main)  [![Sponsor](https://img.shields.io/badge/-Sponsor-fafbfc?logo=GitHub%20Sponsors)](https://github.com/sponsors/tom-englert)
 
